@@ -2,9 +2,11 @@ beautifulsoup4
 playwright
 pyyaml
 requests
-tinydb
+pymongo
 python-dotenv
 langchain-google-genai
 langchain-openai
 langchain
 pydantic
+fastapi
+uvicorn

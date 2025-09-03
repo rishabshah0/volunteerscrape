@@ -1,5 +1,13 @@
 volunteermatch.org:
-  crawler: "get"
+  crawler: get
   instructions:
-    include: "#content_opp_details"
-    exclude: "#opp_det_actions, .hvr-o, .addthis_inline_share_toolbox, .related_opportunities_list, .vm-form-container, .back-to-search, div[class*='feedback']"
+    include: '#content_opp_details'
+    exclude: '#opp_det_actions, .hvr-o, .addthis_inline_share_toolbox, .related_opportunities_list,
+      .vm-form-container, .back-to-search, div[class*=''feedback'']'
+volunteer.gov:
+  crawler: js
+  instructions:
+    include: 'c-nps-vol-opp-banner, c-afs-cta.marginRight, div[data-region-name="FeaturedAlt"]'
+    exclude: 'nav, header, footer, script, style, .forceSkipLink, .themeUtils, .comm-navigation__curtain,
+      c-afs-banner-notification, .auraMsgBox, #auraErrorMask, .forceCommunityToastManager,
+      .forceHoverPrototype, .siteforceSpinnerManager, .spacer, c-afs-background, c-nps-apply-now-button-wrapper'

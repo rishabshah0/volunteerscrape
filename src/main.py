@@ -1,29 +1,16 @@
 import json
 import yaml
 import logging
-from urllib.parse import urlsplit, urlunsplit
-from storage import save_to_tinydb
+from urllib.parse import urlsplit
+from storage import save_to_mongodb
 from get_crawler import get_webpage_content
 from js_crawler import get_webpage_content_js
 from llm import llm
+from utils import normalize_url
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-OUTPUT_FILENAME = "volunteer_opportunities.json"
 SITES_CONFIG_PATH = "sites.yaml"
-
-
-def normalize_url(url: str) -> str:
-    """
-    Normalizes a URL to ensure it has a scheme and a netloc.
-    """
-    split_url = urlsplit(url)
-    if not split_url.scheme:
-        split_url = split_url._replace(scheme="https")
-    if not split_url.netloc:
-        split_url = split_url._replace(netloc=split_url.path)
-        split_url = split_url._replace(path="")
-    return urlunsplit(split_url)
 
 
 try:
@@ -57,7 +44,7 @@ if domain in sites_config:
         if opportunity_data:
             logging.info("Successfully extracted information:")
             logging.info(json.dumps(opportunity_data, indent=2))
-            save_to_tinydb(opportunity_data, OUTPUT_FILENAME)
+            save_to_mongodb(opportunity_data)
         else:
             raise Exception("Failed to extract information using the API.")
     else:
