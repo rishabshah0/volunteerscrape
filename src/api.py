@@ -1,6 +1,4 @@
-import os
 import re
-import json
 import yaml
 import logging
 from pathlib import Path
@@ -10,7 +8,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi import responses as fastapi_responses
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 import sys
 # Resolve project base (directory containing sites.yaml)
@@ -30,7 +28,6 @@ from utils import normalize_url, extract_domain
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 SITES_CONFIG_PATH = BASE_DIR / 'sites.yaml'
-RAW_HTML_MIN_LEN = 2048  # bytes threshold to decide if we fallback to JS crawler
 
 app = FastAPI(title="Volunteer Scraper API", version="0.1.0")
 
@@ -52,8 +49,9 @@ class ScrapeRequest(BaseModel):
     url: str
     model: Optional[str] = 'gemini'
 
-    @validator('url')
-    def validate_url(cls, v):
+    @field_validator('url', mode='before')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
         if not v or len(v) > 2048:
             raise ValueError('Invalid URL length')
         norm = normalize_url(v)
@@ -64,17 +62,20 @@ class ScrapeRequest(BaseModel):
             raise ValueError('Invalid domain')
         return norm
 
-    @validator('model')
-    def validate_model(cls, v):
+    @field_validator('model')
+    @classmethod
+    def validate_model(cls, v: str) -> str:
         if v not in {'gemini', 'gpt'}:
             raise ValueError('model must be gemini or gpt')
         return v
 
 class GenerateConfigRequest(BaseModel):
     url: str
+    raw_html: str
 
-    @validator('url')
-    def validate_url(cls, v):
+    @field_validator('url', mode='before')
+    @classmethod
+    def validate_url(cls, v: str) -> str:
         if not v or len(v) > 2048:
             raise ValueError('Invalid URL length')
         norm = normalize_url(v)
@@ -85,19 +86,35 @@ class GenerateConfigRequest(BaseModel):
             raise ValueError('Invalid domain')
         return norm
 
+    @field_validator('raw_html')
+    @classmethod
+    def validate_html(cls, v: str) -> str:
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError('raw_html must be a non-empty string')
+        return v
+
 class SaveConfigRequest(BaseModel):
     domain: str
     include: str
     exclude: str
 
-    @validator('domain')
-    def validate_domain(cls, v):
+    @field_validator('domain', mode='before')
+    @classmethod
+    def validate_domain(cls, v: str) -> str:
         if not SAFE_DOMAIN_REGEX.match(v):
             raise ValueError('Invalid domain')
         return v.lower()
 
-    @validator('include', 'exclude')
-    def validate_selectors(cls, v):
+    @field_validator('include')
+    @classmethod
+    def validate_include(cls, v: str) -> str:
+        if len(v) > 1000:
+            raise ValueError('Selector too long')
+        return v.strip()
+
+    @field_validator('exclude')
+    @classmethod
+    def validate_exclude(cls, v: str) -> str:
         if len(v) > 1000:
             raise ValueError('Selector too long')
         return v.strip()
@@ -112,6 +129,7 @@ def load_sites_config() -> dict:
     if not isinstance(data, dict):
         raise HTTPException(status_code=500, detail='Corrupted configuration file.')
     return data
+
 
 def save_sites_config(data: dict) -> None:
     tmp_path = SITES_CONFIG_PATH.with_suffix('.yaml.tmp')
@@ -140,74 +158,42 @@ async def _scrape_url(url: str, model: str):
     data = llm(cleaned_content, url, model_name=model)
     return data
 
+
 @app.post('/api/scrape')
 async def scrape(req: ScrapeRequest):
     try:
         return await _scrape_url(req.url, str(req.model))
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logging.exception('Unhandled scrape error')
         raise HTTPException(status_code=500, detail='Internal server error')
+
 
 @app.get('/api/scrape')
 async def scrape_get(url: str, model: str = 'gemini'):
     try:
-        # Manually validate query parameters as Pydantic is not used for GET query params here
         req = ScrapeRequest(url=url, model=model)
         return await _scrape_url(req.url, req.model)
-    except (ValueError, HTTPException) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
     except Exception:
         logging.exception('Unhandled scrape error (GET)')
         raise HTTPException(status_code=500, detail='Internal server error')
 
+
 @app.post('/api/generate-config')
 async def generate_config(req: GenerateConfigRequest):
-    import requests
-    from playwright.async_api import async_playwright
     try:
-        headers = { 'User-Agent': 'Mozilla/5.0' }
-        raw_html = ''
-        used_js = False
-        # Attempt simple GET first (raw HTML)
-        try:
-            r = requests.get(req.url, headers=headers, timeout=10)
-            r.raise_for_status()
-            raw_html = r.text
-        except Exception:
-            logging.info('Primary GET fetch failed outright; will fallback to JS crawler after length check')
-        # Fallback if content too short
-        if len(raw_html.encode('utf-8')) < RAW_HTML_MIN_LEN:
-            logging.info('Content below threshold or empty; fetching raw HTML via JS crawler')
-            async with async_playwright() as p:
-                browser = await p.chromium.launch()
-                page = await browser.new_page()
-                await page.goto(req.url)
-                raw_html = await page.content()
-                await browser.close()
-            used_js = True
-        # Produce a baseline cleaned text using appropriate crawler function (empty selectors)
-        baseline_instructions = { 'include': '', 'exclude': '' }
-        if used_js:
-            try:
-                _baseline_clean = get_webpage_content_js(req.url, baseline_instructions)
-            except Exception:
-                _baseline_clean = ''
-        else:
-            try:
-                _baseline_clean = get_webpage_content(req.url, baseline_instructions)
-            except Exception:
-                _baseline_clean = ''
-        # LLM-based selector generation (imported generate_parser_selectors)
-        selectors = generate_parser_selectors(raw_html, req.url)
-        cleaned_text = parse_html(raw_html, selectors)
-        return { 'raw_html': raw_html, 'cleaned_text': cleaned_text, 'selectors': selectors }
+        selectors = generate_parser_selectors(req.raw_html, req.url)
+        cleaned_text = parse_html(req.raw_html, selectors)
+        return { 'selectors': selectors, 'cleaned_text': cleaned_text }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logging.exception('Unhandled generate-config error')
         raise HTTPException(status_code=500, detail='Internal server error')
+
 
 @app.post('/api/save-config')
 async def save_config(req: SaveConfigRequest):
@@ -224,16 +210,18 @@ async def save_config(req: SaveConfigRequest):
         return { 'status': 'ok', 'domain': req.domain }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logging.exception('Unhandled save-config error')
         raise HTTPException(status_code=500, detail='Internal server error')
+
 
 @app.get('/')
 async def root():
     return { 'message': 'Volunteer Scraper API running' }
 
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return fastapi_responses.JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
 
-# Run with: uvicorn webapp.app:app --reload
+# Run with: uvicorn src.api:app --reload
