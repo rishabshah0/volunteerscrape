@@ -1,45 +1,35 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
+/* eslint-disable @next/next/no-img-element */
+import { GalleryVerticalEnd } from "lucide-react";
+import Link from "next/link";
+
+import { LoginForm } from "@/components/login-form";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => { router.push("/admin"); }, 300);
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">Login</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+    <div className="grid min-h-svh lg:grid-cols-2">
+      <div className="flex flex-col gap-4 p-6 md:p-10">
+        <div className="flex justify-center gap-2 md:justify-start">
+          <Link href="/" className="flex items-center gap-2 font-medium">
+            <div className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
+              <GalleryVerticalEnd className="size-4" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>{loading ? "Logging in..." : "Login"}</Button>
-            <div className="text-sm text-center text-muted-foreground">No account? <button type="button" className="underline" onClick={() => router.push("/register")}>Register</button></div>
-          </form>
-        </CardContent>
-      </Card>
+            Acme Inc.
+          </Link>
+        </div>
+        <div className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-xs">
+            <LoginForm />
+          </div>
+        </div>
+      </div>
+      <div className="bg-muted relative hidden lg:block">
+        <img
+          src="https://ui.shadcn.com/placeholder.svg"
+          alt="Image"
+          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+        />
+      </div>
     </div>
   );
 }
-
