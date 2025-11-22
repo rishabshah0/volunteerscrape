@@ -99,7 +99,7 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
-      <header className="sticky top-0 z-50 border-b bg-white/90 dark:bg-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-slate-900/70">
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-white/90 dark:bg-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-slate-900/70">
         <div className="mx-auto w-full max-w-7xl pl-3 pr-5 sm:pl-4 sm:pr-6 py-4">
           <div className="flex items-center w-full gap-3">
             <h1 className="mr-2 text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">Acme Inc</h1>
@@ -109,7 +109,7 @@ export default function SearchPage() {
                 placeholder="Search opportunities, organizations, locations..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="pl-10 h-10 rounded-full bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus-visible:ring-slate-300 dark:focus-visible:ring-slate-600"
+                className="pl-10 h-10 rounded-full bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700/80 focus-visible:ring-slate-300 dark:focus-visible:ring-slate-600"
               />
             </div>
             <Button
@@ -161,7 +161,7 @@ export default function SearchPage() {
               {/* Date Range */}
               <Popover>
                 <PopoverTrigger asChild>
-                  <button className="flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 pl-4 pr-4 h-10 text-slate-600 dark:text-slate-300 text-[12px] hover:bg-slate-50 dark:hover:bg-slate-800/80">
+                  <button className="flex items-center gap-2 rounded-full border border-slate-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 pl-4 pr-4 h-10 text-slate-600 dark:text-slate-300 text-[12px] hover:bg-slate-50 dark:hover:bg-slate-800/80">
                     <CalendarIcon className="h-4 w-4" />
                     {dateRange?.from || dateRange?.to ? (
                       <span>
@@ -180,7 +180,7 @@ export default function SearchPage() {
                     onSelect={setDateRange}
                     defaultMonth={dateRange?.from}
                     disabled={{ before: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()) }}
-                    className="rounded-lg border shadow-sm"
+                    className="rounded-lg border border-border/40 shadow-sm"
                   />
                   {dateRange?.from || dateRange?.to ? (
                     <div className="flex justify-between items-center text-[11px] pt-1">
@@ -199,13 +199,13 @@ export default function SearchPage() {
           {activeFilters > 0 && !showFilters && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
               {tag && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-slate-700 dark:text-slate-300">Tag: {tag}<button onClick={() => setTag('')} className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"><X className="h-3 w-3" /></button></span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-slate-700 dark:text-slate-300">Tag: {tag}<button onClick={() => setTag('')} className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"><X className="h-3 w-3" /></button></span>
               )}
               {location && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-slate-700 dark:text-slate-300">Location: {location}<button onClick={() => setLocation('')} className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"><X className="h-3 w-3" /></button></span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-slate-700 dark:text-slate-300">Location: {location}<button onClick={() => setLocation('')} className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"><X className="h-3 w-3" /></button></span>
               )}
               {(dateRange?.from || dateRange?.to) && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-slate-700 dark:text-slate-300">Date: {dateRange?.from ? formatShortDate(dateRange.from.toISOString()) : '…'} – {dateRange?.to ? formatShortDate(dateRange.to.toISOString()) : '…'}<button onClick={() => setDateRange(undefined)} className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"><X className="h-3 w-3" /></button></span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200/80 dark:border-slate-700/80 bg-slate-50 dark:bg-slate-800 px-3 py-1 text-slate-700 dark:text-slate-300">Date: {dateRange?.from ? formatShortDate(dateRange.from.toISOString()) : '…'} – {dateRange?.to ? formatShortDate(dateRange.to.toISOString()) : '…'}<button onClick={() => setDateRange(undefined)} className="ml-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-100"><X className="h-3 w-3" /></button></span>
               )}
               <button onClick={clearAllFilters} className="text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 underline-offset-2 hover:underline ml-1">Clear all</button>
             </div>
@@ -215,7 +215,7 @@ export default function SearchPage() {
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-4 py-6">
         {/* Error State */}
         {error && (
-          <div className="mb-6 rounded-md border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">{error}</div>
+          <div className="mb-6 rounded-md border border-red-200/60 dark:border-red-800/60 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-300">{error}</div>
         )}
         {/* No Results */}
         {!loading && filtered.length === 0 && (
@@ -224,7 +224,7 @@ export default function SearchPage() {
 
         {/* Results List */}
         {loading ? (
-          <div className="divide-y divide-slate-200 dark:divide-slate-800">
+          <div className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="py-5 animate-pulse space-y-3">
                 <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-800" />
@@ -235,7 +235,7 @@ export default function SearchPage() {
           </div>
         ) : (
           <div className="text-sm">
-            <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+            <ul className="divide-y divide-slate-200/60 dark:divide-slate-800/60">
               {pageItems.map((o) => (
                 <li key={o.id} className="group relative py-4 first:pt-0 last:pb-0">
                   <div className="flex gap-5">

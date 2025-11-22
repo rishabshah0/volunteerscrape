@@ -1,46 +1,54 @@
 import re
-import yaml
 import logging
-from pathlib import Path
 from typing import Optional
 from urllib.parse import urlsplit
 import datetime
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi import responses as fastapi_responses
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
+from contextlib import asynccontextmanager
+from bs4 import BeautifulSoup
 
-import sys
-# Resolve project base (directory containing sites.yaml)
-BASE_DIR = Path(__file__).resolve().parent
-while BASE_DIR != BASE_DIR.parent and not (BASE_DIR / 'sites.yaml').exists():
-    BASE_DIR = BASE_DIR.parent
-SRC_DIR = BASE_DIR / 'src'
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from get_crawler import get_webpage_content
-from js_crawler import get_webpage_content_js
-from parser import parse_html
-from llm import llm, generate_parser_selectors
-from utils import normalize_url, extract_domain
-from storage import (
+from src.get_crawler import get_webpage_content
+from src.js_crawler import get_webpage_content_js
+from src.parser import parse_html
+from src.llm import llm, generate_parser_selectors
+from src.utils import normalize_url, extract_domain
+from src.storage import (
     list_opportunities,
     get_opportunity_by_id,
+    get_opportunity_by_url,
     insert_opportunity,
     update_opportunity as storage_update_opportunity,
     delete_opportunity as storage_delete_opportunity,
+    create_indexes,
+    list_site_configs,
+    get_site_config_by_domain,
+    update_site_config,
+    delete_site_config,
+    list_users,
+    get_user_by_id,
+    get_user_by_email,
+    insert_user,
+    update_user,
+    delete_user
 )
 from bson import ObjectId
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-SITES_CONFIG_PATH = BASE_DIR / 'sites.yaml'
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logging.info("Application starting up...")
+    create_indexes()
+    logging.info("Application startup complete.")
+    yield
+    logging.info("Application shutting down...")
 
-app = FastAPI(title="Volunteer Scraper API", version="0.1.0")
+app = FastAPI(title="CSR Scraper API", version="0.1.0", lifespan=lifespan)
 
-# CORS (allow file:// null origin and localhost origins)
 origins = [
     "http://localhost",
     "http://localhost:8000",
@@ -58,8 +66,6 @@ app.add_middleware(
 )
 
 SAFE_DOMAIN_REGEX = re.compile(r'^[A-Za-z0-9.-]+$')
-
-# -------------------- Pydantic Models -------------------- #
 
 class ScrapeRequest(BaseModel):
     url: str
@@ -113,6 +119,7 @@ class SaveConfigRequest(BaseModel):
     domain: str
     include: str
     exclude: str
+    crawler: Optional[str] = 'get'
 
     @field_validator('domain', mode='before')
     @classmethod
@@ -134,6 +141,13 @@ class SaveConfigRequest(BaseModel):
         if len(v) > 1000:
             raise ValueError('Selector too long')
         return v.strip()
+
+    @field_validator('crawler')
+    @classmethod
+    def validate_crawler(cls, v: str) -> str:
+        if v not in {'get', 'js'}:
+            raise ValueError('crawler must be get or js')
+        return v
 
 class Opportunity(BaseModel):
     id: str
@@ -175,44 +189,124 @@ class Paginated(BaseModel):
     page: int
     pageSize: int
 
-# -------------------- Load & Persist Config -------------------- #
+class GenerateConfigFromUrlRequest(BaseModel):
+    url: str
 
-def load_sites_config() -> dict:
-    if not SITES_CONFIG_PATH.exists():
-        return {}
-    with SITES_CONFIG_PATH.open('r', encoding='utf-8') as f:
-        data = yaml.safe_load(f) or {}
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=500, detail='Corrupted configuration file.')
-    return data
+    @field_validator('url', mode='before')
+    @classmethod
+    def validate_url_only(cls, v: str) -> str:
+        if not v or len(v) > 2048:
+            raise ValueError('Invalid URL length')
+        norm = normalize_url(v)
+        parts = urlsplit(norm)
+        if parts.scheme not in {'http', 'https'}:
+            raise ValueError('Unsupported URL scheme')
+        if not SAFE_DOMAIN_REGEX.match(parts.netloc):
+            raise ValueError('Invalid domain')
+        return norm
 
-
-def save_sites_config(data: dict) -> None:
-    tmp_path = SITES_CONFIG_PATH.with_suffix('.yaml.tmp')
-    with tmp_path.open('w', encoding='utf-8') as f:
-        yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
-    tmp_path.replace(SITES_CONFIG_PATH)
-
-# -------------------- Endpoint Implementations -------------------- #
+def _extract_visible_text(raw_html: str) -> str:
+    try:
+        soup = BeautifulSoup(raw_html, 'html.parser')
+        for tag in soup(['script', 'style', 'noscript', 'header', 'footer', 'nav', 'aside']):
+            tag.decompose()
+        text = soup.get_text(separator='\n', strip=True)
+        lines = [l.strip() for l in text.splitlines()]
+        cleaned = "\n".join([l for l in lines if l])
+        return cleaned
+    except Exception:
+        return raw_html
 
 async def _scrape_url(url: str, model: str):
-    sites_config = load_sites_config()
     domain = extract_domain(url)
-    if domain not in sites_config:
-        raise HTTPException(status_code=404, detail='No configuration for this domain')
-    cfg = sites_config[domain]
-    crawler_type = cfg.get('crawler', 'get')
-    instructions = cfg.get('instructions', {})
-    if crawler_type == 'get':
-        cleaned_content = get_webpage_content(url, instructions)
-    elif crawler_type == 'js':
-        cleaned_content = get_webpage_content_js(url, instructions)
+    cfg_doc = get_site_config_by_domain(domain)
+    instructions = { 'include': '', 'exclude': '' }
+    crawler_pref: str | None = None
+    if cfg_doc:
+        crawler_pref = cfg_doc.get('crawler') or None
+        instructions['include'] = cfg_doc.get('include', '')
+        instructions['exclude'] = cfg_doc.get('exclude', '')
     else:
-        raise HTTPException(status_code=400, detail='Unsupported crawler type in config')
+        instructions = { 'include': 'body', 'exclude': 'script, style, nav, footer, header, aside' }
+
+    cleaned_content = ''
+    try_get_first = (crawler_pref is None) or (crawler_pref == 'get')
+
+    def _safe_get():
+        try:
+            return get_webpage_content(url, instructions) or ''
+        except Exception:
+            return ''
+
+    def _safe_js():
+        try:
+            return get_webpage_content_js(url, instructions) or ''
+        except Exception:
+            return ''
+
+    if try_get_first:
+        cleaned_content = _safe_get()
+        if not cleaned_content:
+            cleaned_content = _safe_js()
+    else:
+        cleaned_content = _safe_js()
+        if not cleaned_content:
+            cleaned_content = _safe_get()
+
     if not cleaned_content:
         raise HTTPException(status_code=502, detail='Failed to retrieve or parse content')
+
     data = llm(cleaned_content, url, model_name=model)
     return data
+
+
+@app.post('/api/scrape-and-save', response_model=Opportunity)
+async def scrape_and_save(req: ScrapeRequest):
+    existing_opportunity = get_opportunity_by_url(req.url)
+    if existing_opportunity:
+        logging.info(f"URL {req.url} already exists. Returning existing document.")
+        return _map_doc_to_opportunity(existing_opportunity)
+
+    try:
+        scraped_data = await _scrape_url(req.url, str(req.model))
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception('Unhandled scrape error during scrape-and-save')
+        raise HTTPException(status_code=500, detail='Internal server error during scraping')
+
+    if not scraped_data:
+        raise HTTPException(status_code=502, detail='Failed to extract any data from the URL.')
+
+    now = datetime.datetime.now(datetime.UTC).isoformat()
+    doc_to_insert = {
+        "title": scraped_data.get("activity_type", "Untitled Opportunity"),
+        "organization": scraped_data.get("organization_name"),
+        "tags": [tag.lower() for tag in scraped_data.get("tags", [])],
+        "location": scraped_data.get("location"),
+        "description": scraped_data.get("extra"),
+        "activityType": scraped_data.get("activity_type"),
+        "timeSlot": scraped_data.get("time_slot"),
+        "url": scraped_data.get("url"),
+        "contactEmail": scraped_data.get("contact_email") if scraped_data.get("contact_email") != "N/A" else None,
+        "contactPhone": str(scraped_data.get("contact_number")) if scraped_data.get("contact_number") else None,
+        "createdAt": now,
+        "updatedAt": now,
+        "rawScrapedData": scraped_data,
+    }
+
+    try:
+        inserted = insert_opportunity(doc_to_insert)
+        if not inserted:
+            raise HTTPException(status_code=500, detail='Database insert failed.')
+    except Exception as e:
+        logging.error(f"Failed to insert opportunity for URL {req.url}: {e}")
+        existing = get_opportunity_by_url(req.url)
+        if existing:
+            return _map_doc_to_opportunity(existing)
+        raise HTTPException(status_code=500, detail=f"An error occurred during database insertion: {e}")
+
+    return _map_doc_to_opportunity(inserted)
 
 
 @app.post('/api/scrape')
@@ -254,20 +348,60 @@ async def generate_config(req: GenerateConfigRequest):
 @app.post('/api/save-config')
 async def save_config(req: SaveConfigRequest):
     try:
-        sites_config = load_sites_config()
-        sites_config[req.domain] = {
-            'crawler': 'get',
-            'instructions': {
-                'include': req.include,
-                'exclude': req.exclude
-            }
+        config_doc = {
+            'domain': req.domain,
+            'crawler': req.crawler or 'get',
+            'include': req.include,
+            'exclude': req.exclude,
+            'updatedAt': datetime.datetime.now(datetime.UTC).isoformat()
         }
-        save_sites_config(sites_config)
+        update_site_config(req.domain, config_doc)
         return { 'status': 'ok', 'domain': req.domain }
     except HTTPException:
         raise
     except Exception:
         logging.exception('Unhandled save-config error')
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@app.get('/api/site-configs')
+async def list_configs():
+    try:
+        configs = list_site_configs()
+        for c in configs:
+            c['_id'] = str(c['_id'])
+        return {'configs': configs}
+    except Exception:
+        logging.exception('Failed to list site configs')
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@app.get('/api/site-configs/{domain}')
+async def get_config(domain: str):
+    try:
+        config = get_site_config_by_domain(domain)
+        if not config:
+            raise HTTPException(status_code=404, detail='Config not found')
+        config['_id'] = str(config['_id'])
+        return config
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception('Failed to get site config')
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+
+@app.delete('/api/site-configs/{domain}')
+async def delete_config(domain: str):
+    try:
+        ok = delete_site_config(domain)
+        if not ok:
+            raise HTTPException(status_code=404, detail='Config not found')
+        return {'ok': True}
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception('Failed to delete site config')
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
@@ -284,9 +418,7 @@ def _map_doc_to_opportunity(doc: dict) -> Opportunity:
             if isinstance(v, list) and all(isinstance(x, str) for x in v):
                 return v
         return []
-    created = _pick('createdAt') or _pick('created_at') or llm.__name__ and ''  # placeholder
-    if not created:
-        created = doc.get('createdAt') or doc.get('created_at') or ''
+    created = _pick('createdAt') or _pick('created_at')
     if not created:
         created = doc.get('_id') and ObjectId(doc['_id']).generation_time.isoformat()
     updated = _pick('updatedAt') or created
@@ -328,7 +460,6 @@ async def opportunities_list(
 
 @app.post('/api/opportunities', response_model=Opportunity)
 async def opportunity_create(body: OpportunityCreate):
-    now = body.__dict__
     doc = {
         'title': (body.title or 'Untitled'),
         'organization': body.organization or '',
@@ -342,10 +473,7 @@ async def opportunity_create(body: OpportunityCreate):
         'url': body.url or '',
         'contactEmail': body.contactEmail,
         'contactPhone': body.contactPhone,
-        'createdAt': llm.__name__ and '' or '',  # placeholder overwritten below
-        'updatedAt': llm.__name__ and '' or '',
     }
-    # actual timestamp
     ts = datetime.datetime.now(datetime.UTC).isoformat()
     doc['createdAt'] = ts
     doc['updatedAt'] = ts
@@ -379,11 +507,135 @@ async def opportunity_delete(id: str):
 
 @app.get('/')
 async def root():
-    return { 'message': 'Volunteer Scraper API running' }
+    return { 'message': 'CSR Scraper API running' }
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return fastapi_responses.JSONResponse(status_code=exc.status_code, content={'detail': exc.detail})
 
-# Run with: uvicorn src.api:app --reload
+@app.post('/api/generate-config-url')
+async def generate_config_url(req: GenerateConfigFromUrlRequest):
+    try:
+        import requests
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+        r = requests.get(req.url, headers=headers, timeout=20)
+        r.raise_for_status()
+        raw_html = r.text
+        selectors = generate_parser_selectors(raw_html, req.url)
+        cleaned_text = parse_html(raw_html, selectors)
+        raw_text = _extract_visible_text(raw_html)
+        return {'selectors': selectors, 'cleaned_text': cleaned_text, 'raw_text': raw_text}
+    except HTTPException:
+        raise
+    except Exception:
+        logging.exception('Unhandled generate-config-url error')
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+
+class User(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    createdAt: str
+
+class UserCreate(BaseModel):
+    name: str
+    email: str
+    role: str
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+    role: Optional[str] = None
+
+class UserPaginated(BaseModel):
+    items: list[User]
+    total: int
+    page: int
+    pageSize: int
+
+def _map_doc_to_user(doc: dict) -> User:
+    """Map MongoDB user document to User model"""
+    oid = doc.get('_id')
+    id_str = str(oid) if oid else str(doc.get('id', ''))
+    created = doc.get('createdAt') or doc.get('created_at') or ''
+    if not created and oid:
+        created = ObjectId(oid).generation_time.isoformat()
+    return User(
+        id=id_str,
+        name=doc.get('name', ''),
+        email=doc.get('email', ''),
+        role=doc.get('role', 'user'),
+        createdAt=created or ''
+    )
+
+@app.get("/api/users", response_model=UserPaginated)
+async def get_users(
+    page: int = Query(1, ge=1),
+    pageSize: int = Query(20, ge=1, le=100),
+    q: Optional[str] = None,
+    role: Optional[str] = None
+):
+    """List users with optional search and role filter."""
+    page = max(1, page)
+    pageSize = max(1, min(100, pageSize))
+    docs, total = list_users(page=page, page_size=pageSize, q=q, role=role)
+    items = [_map_doc_to_user(d) for d in docs]
+    return UserPaginated(items=items, total=total, page=page, pageSize=pageSize)
+
+@app.post("/api/users", response_model=User)
+async def create_user_endpoint(user: UserCreate):
+    """Create a new user."""
+    # Check if email already exists
+    existing = get_user_by_email(user.email)
+    if existing:
+        raise HTTPException(status_code=400, detail='Email already exists')
+
+    user_data = {
+        'name': user.name,
+        'email': user.email,
+        'role': user.role,
+        'createdAt': datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+
+    doc = insert_user(user_data)
+    if not doc:
+        raise HTTPException(status_code=500, detail='Failed to create user')
+
+    return _map_doc_to_user(doc)
+
+@app.put("/api/users/{user_id}", response_model=User)
+async def update_user_endpoint(user_id: str, user: UserUpdate):
+    """Update an existing user."""
+    existing = get_user_by_id(user_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail='User not found')
+
+    update_data = {}
+    if user.name is not None:
+        update_data['name'] = user.name
+    if user.email is not None:
+        update_data['email'] = user.email
+    if user.role is not None:
+        update_data['role'] = user.role
+
+    if not update_data:
+        return _map_doc_to_user(existing)
+
+    doc = update_user(user_id, update_data)
+    if not doc:
+        raise HTTPException(status_code=500, detail='Failed to update user')
+
+    return _map_doc_to_user(doc)
+
+@app.delete("/api/users/{user_id}")
+async def delete_user_endpoint(user_id: str):
+    """Delete a user by ID."""
+    ok = delete_user(user_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail='User not found')
+    return {"ok": True}

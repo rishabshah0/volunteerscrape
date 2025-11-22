@@ -1,6 +1,6 @@
 import requests
 import logging
-from parser import parse_html
+from .parser import parse_html
 
 
 def get_webpage_content(url: str, instructions: dict) -> str:

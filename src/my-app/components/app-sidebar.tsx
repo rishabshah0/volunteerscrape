@@ -6,10 +6,12 @@ import Link from "next/link"
 import {
   Users,
   Settings,
-  Heart,
+  Building2,
   Home,
   ChevronUp,
   User2,
+  Wrench,
+  Cog,
 } from "lucide-react"
 
 import {
@@ -49,7 +51,17 @@ const data = {
     {
       title: "Opportunities",
       url: "/admin/opportunities",
-      icon: Heart,
+      icon: Building2,
+    },
+    {
+      title: "Scraper",
+      url: "/admin/scraper",
+      icon: Wrench,
+    },
+    {
+      title: "Config",
+      url: "/admin/config",
+      icon: Cog,
     },
     {
       title: "Users",

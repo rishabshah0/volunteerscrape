@@ -1,6 +1,6 @@
-from playwright.sync_api import sync_playwright, Error
+from playwright.sync_api import sync_playwright
 import logging
-from parser import parse_html
+from .parser import parse_html
 
 
 def get_webpage_content_js(url: str, instructions: dict) -> str:

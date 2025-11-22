@@ -1,5 +1,5 @@
 import logging
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 def parse_html(html_content: str, instructions: dict) -> str:
     """

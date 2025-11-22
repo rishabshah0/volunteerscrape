@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MoreHorizontal, Plus, Pencil, RefreshCcw, Search, FolderPlus, X, List, Tag as TagIcon, Eye, Filter, Archive, Building2 } from "lucide-react";
@@ -136,17 +136,14 @@ export default function OpportunitiesPage() {
     }
   }
 
-  const showingFrom = (page - 1) * pageSize + 1;
-  const showingTo = Math.min(total, page * pageSize);
-
   const skeletonRows = useMemo(() => Array.from({ length: 6 }, (_, i) => (
     <TableRow key={i}>
-      <TableCell><Skeleton className="h-4 w-48" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-40" /></TableCell>
-      <TableCell className="flex gap-1"><Skeleton className="h-5 w-12" /><Skeleton className="h-5 w-10" /><Skeleton className="h-5 w-8" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-      <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-      <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+      <TableCell className="p-4"><Skeleton className="h-4 w-48" /></TableCell>
+      <TableCell className="p-4"><Skeleton className="h-4 w-40" /></TableCell>
+      <TableCell className="p-4 flex gap-1"><Skeleton className="h-5 w-12" /><Skeleton className="h-5 w-10" /><Skeleton className="h-5 w-8" /></TableCell>
+      <TableCell className="p-4"><Skeleton className="h-4 w-32" /></TableCell>
+      <TableCell className="p-4"><Skeleton className="h-4 w-12" /></TableCell>
+      <TableCell className="p-4 text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
     </TableRow>
   )), []);
 
@@ -168,8 +165,8 @@ export default function OpportunitiesPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Opportunities</h1>
-            <p className="text-xs text-muted-foreground">Manage and curate volunteer opportunities</p>
+            <h1 className="text-2xl font-bold tracking-tight">Opportunities</h1>
+            <p className="text-sm text-muted-foreground">Manage and curate CSR opportunities.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
@@ -290,12 +287,12 @@ export default function OpportunitiesPage() {
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[240px]">Title</TableHead>
-                    <TableHead>Organization</TableHead>
-                    <TableHead>Tags</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead className="w-[110px]">Updated</TableHead>
-                    <TableHead className="w-[70px]" />
+                    <TableHead className="p-4 w-[240px]">Title</TableHead>
+                    <TableHead className="p-4">Organization</TableHead>
+                    <TableHead className="p-4">Tags</TableHead>
+                    <TableHead className="p-4">Location</TableHead>
+                    <TableHead className="p-4 w-[110px]">Updated</TableHead>
+                    <TableHead className="p-4 w-[70px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -310,7 +307,7 @@ export default function OpportunitiesPage() {
                           </div>
                           <div className="space-y-1">
                             <p className="font-medium">No opportunities</p>
-                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">Get started by creating a new volunteer opportunity or adjust your search.</p>
+                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">Get started by creating a new CSR opportunity or adjust your search.</p>
                           </div>
                           <Button size="sm" onClick={() => setOpenAdd(true)}>
                             <Plus className="size-4 mr-2" /> New Opportunity
@@ -326,7 +323,7 @@ export default function OpportunitiesPage() {
                       const fullTimestamp = (() => { try { return new Date(o.updatedAt).toLocaleString(); } catch { return o.updatedAt; } })();
                       return (
                         <TableRow key={o.id} className="hover:bg-muted/50 transition-colors animate-[fadeIn_0.25s_ease-out]">
-                          <TableCell className="font-medium">
+                          <TableCell className="p-4 font-medium">
                             <div className="flex flex-col" title={o.description || o.title}>
                               <span className="truncate font-medium leading-snug">{o.title}</span>
                               {o.timeSlot && (
@@ -334,8 +331,8 @@ export default function OpportunitiesPage() {
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>{o.organization}</TableCell>
-                          <TableCell className="space-x-1">
+                          <TableCell className="p-4">{o.organization}</TableCell>
+                          <TableCell className="p-4 space-x-1">
                             {firstTags.map((t) => (
                               <Badge key={t} variant="secondary" className="align-middle">{t}</Badge>
                             ))}
@@ -350,8 +347,8 @@ export default function OpportunitiesPage() {
                               </Tooltip>
                             )}
                           </TableCell>
-                          <TableCell>{o.location || <span className="text-muted-foreground">—</span>}</TableCell>
-                          <TableCell>
+                          <TableCell className="p-4">{o.location || <span className="text-muted-foreground">—</span>}</TableCell>
+                          <TableCell className="p-4">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <div className={`text-xs whitespace-nowrap px-1 py-0.5 rounded ${updatedRecently ? 'bg-accent/40 font-medium' : 'text-muted-foreground'}`}>{timeAgo(o.updatedAt)}</div>
@@ -361,7 +358,7 @@ export default function OpportunitiesPage() {
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="p-4 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon"><MoreHorizontal className="size-4" /></Button>
