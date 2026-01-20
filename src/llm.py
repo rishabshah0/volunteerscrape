@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 
 load_dotenv()
 
-class CSROpportunity(BaseModel):
+class VolunteerOpportunity(BaseModel):
     organization_name: str = Field(description="Full organization name running the opportunity; prefer the most prominent branding on page.")
     activity_type: str = Field(description='3–10 word specific activity summary (e.g., "environmental cleanup and service projects"). Avoid generic phrasing.')
     location: str = Field(description='Street Address, City, State only. If absent use "N/A".')
@@ -18,6 +18,7 @@ class CSROpportunity(BaseModel):
     contact_number: int = Field(description="Primary phone digits only; 0 if none.")
     extra: str = Field(description="Important details that do not fit other fields. 'N/A' if none.")
     tags: list[str] = Field(description='1–3 tags from: environment, food security, education, community, healthcare, animal welfare, disaster relief, homeless support, advocacy.')
+    mode: str = Field(description='One of: "Onsite", "Virtual", "Hybrid". Determine based on location context and activity description.')
 
 class ParserSelectors(BaseModel):
     include: str = Field(description="Comma-separated minimal CSS selectors capturing ONLY the core descriptive content (e.g. '#main, article, .content').")
@@ -28,7 +29,7 @@ def _get_model(model_name: str = 'gemini'):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set.")
-        return ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=api_key)
+        return ChatGoogleGenerativeAI(model="gemini-3-flash-preview", google_api_key=api_key)
     if model_name == "gpt":
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
@@ -40,7 +41,7 @@ SYSTEM_PROMPT_MAIN = "You extract structured, concise volunteer opportunity data
 
 def llm(content: str, url: str, model_name: str = "gemini") -> dict:
     model = _get_model(model_name)
-    structured_llm = model.with_structured_output(CSROpportunity)
+    structured_llm = model.with_structured_output(VolunteerOpportunity)
     safe_content = content.replace('{', '{{').replace('}', '}}')
     user_msg = f"URL: {url}\nPage Text:\n{safe_content}"
     prompt = ChatPromptTemplate.from_messages([
@@ -54,7 +55,11 @@ def llm(content: str, url: str, model_name: str = "gemini") -> dict:
     return data
 
 SYSTEM_PROMPT_SELECTORS = (
-    "You analyze raw HTML of a single volunteer opportunity page and propose minimal CSS include selectors capturing ONLY the core descriptive content and exclude selectors removing surrounding boilerplate. Keep selectors short."
+    "You analyze raw HTML of a single volunteer opportunity page and propose minimal CSS include selectors capturing ONLY the core descriptive content and exclude selectors removing surrounding boilerplate. "
+    "IMPORTANT: Look for actual element IDs, classes, and tags that exist in the HTML. For Salesforce/dynamic sites, look for divs with specific classes or IDs. "
+    "Common patterns: .slds-card, .record-detail, [class*='content'], [class*='detail'], [class*='body']. "
+    "If you cannot find specific content containers, use 'body' as include and be comprehensive with exclude selectors. "
+    "Keep selectors practical and based on what you actually see in the HTML."
 )
 
 def generate_parser_selectors(raw_html: str, url: str, model_name: str = 'gemini') -> dict:
@@ -64,7 +69,14 @@ def generate_parser_selectors(raw_html: str, url: str, model_name: str = 'gemini
     soup = BeautifulSoup(raw_html, 'html.parser')
     title_tag = soup.find('title')
     title = title_tag.get_text(strip=True) if title_tag else "No title"
-    user_msg = f"URL: {url}\nPage Title: {title}\nRaw HTML (first 8000 chars):\n{safe_html[:8000]}"
+
+    # For better analysis, send more HTML (up to 20000 chars) and include some from middle/end
+    # This helps with Salesforce/SPA sites where content may be further down
+    html_sample = safe_html[:15000]
+    if len(safe_html) > 30000:
+        html_sample += "\n\n... [middle section] ...\n\n" + safe_html[len(safe_html)//2:len(safe_html)//2 + 5000]
+
+    user_msg = f"URL: {url}\nPage Title: {title}\nRaw HTML sample:\n{html_sample}"
     prompt = ChatPromptTemplate.from_messages([
         ("system", SYSTEM_PROMPT_SELECTORS),
         ("user", user_msg)

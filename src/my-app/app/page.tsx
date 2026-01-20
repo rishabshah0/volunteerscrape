@@ -3,46 +3,63 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ArrowRight, Sparkles } from "lucide-react";
+import { Search, ArrowRight, Sparkles, Globe, Users, MapPin } from "lucide-react";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 
 export default function Home() {
   const router = useRouter();
   const [q, setQ] = useState("");
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background to-muted/20">
-      <header className="px-6 py-4 flex items-center justify-between bg-background/80 backdrop-blur-md sticky top-0 z-10">
-        <div className="font-bold text-2xl tracking-tight flex items-center gap-2">
-          <Sparkles className="h-6 w-6" />
-          Acme Inc
+    <div className="min-h-screen flex flex-col bg-background relative overflow-hidden selection:bg-primary/10 selection:text-primary">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#8080800a_1px,transparent_1px),linear-gradient(to_bottom,#8080800a_1px,transparent_1px)] bg-[size:14px_24px]">
+        <div className="absolute left-0 right-0 top-0 -z-10 m-auto h-[310px] w-[310px] rounded-full bg-primary/20 opacity-20 blur-[100px]"></div>
+      </div>
+
+      <header className="px-6 h-16 flex items-center justify-between border-b border-border/40 bg-background/60 backdrop-blur-xl sticky top-0 z-50">
+        <div className="font-bold text-xl tracking-tight flex items-center gap-2.5 cursor-pointer" onClick={() => router.push("/")}>
+          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <Sparkles className="h-4 w-4 text-primary" />
+          </div>
+          <span>Acme Inc</span>
         </div>
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => router.push("/search")} className="hover:bg-accent/50">
-            Browse
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:block" />
+          <Button variant="ghost" size="sm" onClick={() => router.push("/login")}>
+            Log in
           </Button>
-          <Button variant="ghost" onClick={() => router.push("/scraper")} className="hover:bg-accent/50">
-            Scraper
-          </Button>
-          <Button onClick={() => router.push("/login")}>
-            Login
+          <Button size="sm" onClick={() => router.push("/register")}>
+            Sign up
           </Button>
           <ThemeSwitcher />
         </div>
       </header>
-      <main className="flex-1 flex items-center justify-center px-6">
-        <div className="max-w-4xl w-full text-center space-y-12">
-          <div className="space-y-4">
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter leading-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-              Discover Your Next CSR Opportunity
+
+      <main className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-20 sm:py-32 relative">
+        <div className="max-w-4xl w-full text-center space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+
+          <div className="space-y-6">
+            <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-sm font-medium text-primary backdrop-blur-sm">
+              <span className="flex h-2 w-2 rounded-full bg-primary mr-2 animate-pulse"></span>
+              Over 1,000+ active opportunities added this week
+            </div>
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tighter leading-[1.1]">
+              Make a Difference <br className="hidden sm:block" />
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-primary/50">
+                Where It Matters
+              </span>
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Find and filter meaningful opportunities to make a real impact in your community.
+            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+              Connect with world-changing organizations. Find opportunities that match your skills and passion for social impact.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto">
-            <div className="relative flex-1">
+
+          <div className="max-w-2xl mx-auto w-full relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary/10 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+            <div className="relative flex items-center bg-background rounded-xl border border-border/50 shadow-lg shadow-primary/5 p-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50">
+              <Search className="ml-4 h-5 w-5 text-muted-foreground" />
               <Input
-                placeholder="Search by title, org, tag..."
+                placeholder="Search by cause, location, or organization..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => {
@@ -50,38 +67,41 @@ export default function Home() {
                     router.push(`/search${q ? `?q=${encodeURIComponent(q)}` : ""}`);
                   }
                 }}
-                className="pl-11 pr-4 py-6 text-base rounded-xl border-2 focus:border-primary shadow-sm transition-all"
+                className="flex-1 border-none shadow-none focus-visible:ring-0 bg-transparent h-12 text-base px-4 placeholder:text-muted-foreground/70"
               />
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
-            </div>
-            <Button
-              onClick={() =>
-                router.push(`/search${q ? `?q=${encodeURIComponent(q)}` : ""}`)
-              }
-              className="px-8 py-6 rounded-xl text-base transition-all duration-300 hover:shadow-lg group"
-            >
-              Search
-              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16 text-left">
-            <div className="p-6 rounded-xl border bg-card hover:shadow-md transition-shadow">
-              <div className="text-3xl font-bold mb-2">1000+</div>
-              <div className="text-sm text-muted-foreground">Active Opportunities</div>
-            </div>
-            <div className="p-6 rounded-xl border bg-card hover:shadow-md transition-shadow">
-              <div className="text-3xl font-bold mb-2">200+</div>
-              <div className="text-sm text-muted-foreground">Partner Organizations</div>
-            </div>
-            <div className="p-6 rounded-xl border bg-card hover:shadow-md transition-shadow">
-              <div className="text-3xl font-bold mb-2">50+</div>
-              <div className="text-sm text-muted-foreground">Cities Covered</div>
+              <Button
+                onClick={() =>
+                  router.push(`/search${q ? `?q=${encodeURIComponent(q)}` : ""}`)
+                }
+                size="lg"
+                className="rounded-lg h-12 px-8 text-base font-medium shadow-md hover:shadow-lg transition-all"
+              >
+                Search
+              </Button>
             </div>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-12 max-w-3xl mx-auto">
+            {[
+              { label: "Active Opportunities", value: "2,500+", icon: Globe },
+              { label: "Non-Profits", value: "450+", icon: Users },
+              { label: "Cities", value: "120+", icon: MapPin },
+            ].map((stat, i) => (
+              <div key={i} className="flex flex-col items-center justify-center p-6 rounded-2xl bg-muted/30 border border-border/50 backdrop-blur-sm hover:bg-muted/50 transition-colors">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mb-4 text-primary">
+                  <stat.icon className="h-5 w-5" />
+                </div>
+                <div className="text-3xl font-bold tracking-tight">{stat.value}</div>
+                <div className="text-sm text-muted-foreground font-medium mt-1">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
         </div>
       </main>
-      <footer className="px-6 py-8 text-center text-sm text-muted-foreground border-t border-border">
-        Demo UI • Built with Next.js + shadcn/ui
+
+      <footer className="py-8 text-center text-sm text-muted-foreground/60">
+        <p>© 2024 Volunteer Connect. Built for impact.</p>
       </footer>
     </div>
   );

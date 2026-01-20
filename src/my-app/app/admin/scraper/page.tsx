@@ -20,6 +20,7 @@ export default function AdminScraperPage() {
   const [exclude, setExclude] = useState("");
   const [clean, setClean] = useState("");
   const [rawHtml, setRawHtml] = useState("");
+  const [recommendedCrawler, setRecommendedCrawler] = useState<"get" | "js" | null>(null);
   const [loadingGen, setLoadingGen] = useState(false);
   const [loadingScrape, setLoadingScrape] = useState(false);
   const [savingCfg, setSavingCfg] = useState(false);
@@ -35,9 +36,9 @@ export default function AdminScraperPage() {
   })();
 
   const diffHtml = useMemo(() => {
-    if (!rawHtml || !clean) return "";
+    if (!rawHtml) return "";
     const dmp = new DMP.diff_match_patch();
-    const diffs = dmp.diff_main(rawHtml, clean);
+    const diffs = dmp.diff_main(rawHtml, clean || "");
     dmp.diff_cleanupSemantic(diffs);
     return dmp.diff_prettyHtml(diffs);
   }, [rawHtml, clean]);
@@ -46,12 +47,13 @@ export default function AdminScraperPage() {
     if (!url.trim()) return;
     try {
       setLoadingGen(true);
-      const res = await generateConfigFromUrl(url.trim());
+      const res = await generateConfigFromUrl(url.trim(), model);
       setInclude(res.selectors.include || "");
       setExclude(res.selectors.exclude || "");
       setClean(res.cleaned_text || "");
       setRawHtml(res.raw_text || "");
-      toast.success("Selectors generated");
+      setRecommendedCrawler(res.recommended_crawler || "get");
+      toast.success(`Selectors generated (${res.recommended_crawler === 'js' ? 'JS crawler recommended' : 'GET crawler recommended'})`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Generate failed");
     } finally {
@@ -90,8 +92,9 @@ export default function AdminScraperPage() {
     }
     try {
       setSavingCfg(true);
-      const res = await saveConfig(domain, include.trim(), exclude.trim());
-      toast.success(`Config saved for ${res.domain}`);
+      const crawler = recommendedCrawler || "get";
+      const res = await saveConfig(domain, include.trim(), exclude.trim(), crawler);
+      toast.success(`Config saved for ${res.domain} (${crawler} crawler)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -104,6 +107,7 @@ export default function AdminScraperPage() {
     setExclude("");
     setClean("");
     setRawHtml("");
+    setRecommendedCrawler(null);
   }
 
   return (
@@ -162,7 +166,7 @@ export default function AdminScraperPage() {
                 <Input id="exclude" value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="nav" />
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               <Button onClick={handleGenerate} disabled={!url || loadingGen} className="bg-primary text-primary-foreground hover:bg-primary/90">
                 {loadingGen ? "Generating..." : "Generate"}
               </Button>
@@ -172,6 +176,11 @@ export default function AdminScraperPage() {
               <Button variant="ghost" onClick={handleSaveConfig} disabled={!include || savingCfg} className="border border-transparent hover:border-border">
                 {savingCfg ? "Saving..." : "Save Config"}
               </Button>
+              {recommendedCrawler && (
+                <Badge variant={recommendedCrawler === 'js' ? 'default' : 'secondary'} className="ml-1">
+                  {recommendedCrawler.toUpperCase()} crawler
+                </Badge>
+              )}
               <Button variant="ghost" onClick={handleClear} disabled={!include && !exclude && !clean} className="border border-transparent hover:border-border">
                 Clear
               </Button>

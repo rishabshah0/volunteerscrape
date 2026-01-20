@@ -4,9 +4,16 @@ pyyaml
 requests
 pymongo
 python-dotenv
-langchain-google-genai
-langchain-openai
-langchain
-pydantic
-fastapi
-uvicorn
+
+# FastAPI + Pydantic v2
+fastapi>=0.110,<0.122
+pydantic>=2.7,<3
+uvicorn>=0.27,<0.34
+
+# LangChain: avoid 1.x line that imports pydantic.v1 (warns/breaks on Python 3.14)
+langchain>=0.3.0,<0.4
+langchain-core>=0.3.0,<0.4; python_version < "3.14"
+langchain-openai>=0.3.0,<0.4
+langchain-google-genai>=2.0.0,<3.0
+
+titlecase

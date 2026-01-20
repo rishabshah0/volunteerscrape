@@ -42,10 +42,10 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label htmlFor="language">Language</Label>
               <Select onValueChange={()=>fire('Language')}>
-                <SelectTrigger id="language" style={{ backgroundColor: 'hsl(var(--background))' }}>
+                <SelectTrigger id="language">
                   <SelectValue placeholder="English" />
                 </SelectTrigger>
-                <SelectContent style={{ backgroundColor: 'hsl(var(--popover))' }}>
+                <SelectContent>
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="es">Spanish</SelectItem>
                   <SelectItem value="fr">French</SelectItem>
@@ -76,10 +76,10 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <Label htmlFor="model">Default Model</Label>
               <Select defaultValue="gemini" onValueChange={()=>fire('Model')}>
-                <SelectTrigger id="model" style={{ backgroundColor: 'hsl(var(--background))' }}>
+                <SelectTrigger id="model">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent style={{ backgroundColor: 'hsl(var(--popover))' }}>
+                <SelectContent>
                   <SelectItem value="gemini">Gemini</SelectItem>
                   <SelectItem value="gpt">GPT-4</SelectItem>
                 </SelectContent>
@@ -113,10 +113,10 @@ export default function SettingsPage() {
             <div className="space-y-2 max-w-[180px]">
               <Label htmlFor="items">Items Per Page</Label>
               <Select defaultValue="25" onValueChange={()=>fire('Items Per Page')}>
-                <SelectTrigger id="items" style={{ backgroundColor: 'hsl(var(--background))' }}>
+                <SelectTrigger id="items">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent style={{ backgroundColor: 'hsl(var(--popover))' }}>
+                <SelectContent>
                   <SelectItem value="10">10</SelectItem>
                   <SelectItem value="25">25</SelectItem>
                   <SelectItem value="50">50</SelectItem>

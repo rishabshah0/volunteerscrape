@@ -28,6 +28,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
 export default function UsersPage() {
+  // mounted state for hydration fix
+  const [mounted, setMounted] = useState(false);
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [users, setUsers] = useState<UserType[]>([]);
@@ -62,7 +65,8 @@ export default function UsersPage() {
       setUsers(result.items);
       setTotal(result.total);
       // If current page becomes empty due to deletion, go back one page (unless page=1)
-      if (result.items.length === 0 && page > 1) {
+      // Only go back if there are still items in total (prevents infinite loop)
+      if (result.items.length === 0 && page > 1 && result.total > 0) {
         setPage(p => Math.max(1, p - 1));
       }
     } catch (e) {
@@ -96,6 +100,17 @@ export default function UsersPage() {
   }
 
   const formatDate = (isoString: string) => {
+    // Always return consistent value for SSR/hydration
+    if (!mounted) {
+      // Return a simple formatted date for SSR
+      return new Date(isoString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    // Client-side only: calculate relative time
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -108,6 +123,11 @@ export default function UsersPage() {
     if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`;
     return `${Math.floor(diffDays / 365)}y ago`;
   };
+
+  // Mount effect for hydration fix
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function openAddDialog() {
     setFormName("");

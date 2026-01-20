@@ -1,10 +1,10 @@
 # CSR Opportunity Scraper
 
-using LLMs to scrape for CSR opportunities
+using LLMs to scrape for volunteer opportunities
 
 ## Overview
 
-This project is a full-stack application designed to scrape CSR opportunities from various websites, process the information using Large Language Models (LLMs), and display them in a clean, searchable web interface.
+This project is a full-stack application designed to scrape volunteer opportunities from various websites, process the information using Large Language Models (LLMs), and display them in a clean, searchable web interface.
 
 - **Backend**: A Python application using FastAPI, LangChain, and Playwright.
 - **Frontend**: A Next.js application.

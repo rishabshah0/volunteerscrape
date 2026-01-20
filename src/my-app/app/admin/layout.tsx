@@ -9,7 +9,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
@@ -19,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const pageNames: Record<string, string> = {
   "/admin": "Dashboard",
@@ -33,12 +33,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const currentPage = pageNames[pathname] || "Overview";
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render Radix UI components until after hydration to prevent ID mismatches
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="h-screen flex items-center justify-center">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-3 px-6 sticky top-0 z-40 bg-background/95 supports-[backdrop-filter]:bg-background/95">
+      <SidebarInset className="bg-background overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center gap-3 px-6 sticky top-0 z-40 bg-background border-b border-border/40">
           <div className="rounded-full bg-background/60 backdrop-blur-md p-1.5 shadow-sm">
             <SidebarTrigger className="-ml-0" />
           </div>
@@ -72,7 +88,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
         </header>
-        <div className="flex flex-1 flex-col gap-6 p-6 md:p-8">{children}</div>
+        <div className="flex flex-1 flex-col gap-6 p-6 md:p-8 bg-background overflow-auto">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

@@ -17,6 +17,9 @@ import { createOpportunity, deleteOpportunity, listOpportunities, updateOpportun
 import { OpportunityForm, type OpportunityFormValues } from "@/components/admin/opportunity-form";
 
 export default function OpportunitiesPage() {
+  // mounted state for hydration fix
+  const [mounted, setMounted] = useState(false);
+
   // data state
   const [items, setItems] = useState<Opportunity[]>([]);
   const [page, setPage] = useState(1);
@@ -41,6 +44,17 @@ export default function OpportunitiesPage() {
     if (!iso) return "-";
     const date = new Date(iso);
     if (isNaN(date.getTime())) return "-";
+
+    // Return consistent formatted date for SSR/hydration
+    if (!mounted) {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    }
+
+    // Client-side only: calculate relative time
     const diff = Date.now() - date.getTime();
     const sec = Math.floor(diff / 1000);
     if (sec < 60) return "just now";
@@ -57,6 +71,28 @@ export default function OpportunitiesPage() {
     const yr = Math.floor(day / 365);
     return `${yr}y ago`;
   }
+
+  // helper: format time slot codes to full text
+  function formatTimeSlot(slot?: string) {
+    if (!slot) return null;
+    // Map common codes to full day names
+    const map: Record<string, string> = {
+      "Su": "Sunday", "M": "Monday", "T": "Tuesday", "W": "Wednesday",
+      "Th": "Thursday", "F": "Friday", "Sa": "Saturday",
+      "Sun": "Sunday", "Mon": "Monday", "Tue": "Tuesday", "Wed": "Wednesday",
+      "Thu": "Thursday", "Fri": "Friday", "Sat": "Saturday"
+    };
+
+    // Split by space/comma, map codes, join back
+    return slot.split(/[\s,]+/)
+      .map(part => map[part] || part)
+      .join(", ");
+  }
+
+  // Mount effect for hydration fix
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // debounce search + filters combined
   useEffect(() => {
@@ -124,6 +160,7 @@ export default function OpportunitiesPage() {
     }
   }
 
+
   async function handleDelete(id: string) {
     if (!window.confirm("Delete this opportunity? This cannot be undone.")) return;
     try {
@@ -166,7 +203,7 @@ export default function OpportunitiesPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Opportunities</h1>
-            <p className="text-sm text-muted-foreground">Manage and curate CSR opportunities.</p>
+            <p className="text-sm text-muted-foreground">Manage and curate volunteer opportunities.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => load()} disabled={loading}>
@@ -283,14 +320,14 @@ export default function OpportunitiesPage() {
 
         <Card className="overflow-hidden border-muted/40">
           <CardContent className="p-0">
-            <div className="relative">
+            <div className="relative overflow-x-auto">
               <Table>
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="p-4 w-[240px]">Title</TableHead>
-                    <TableHead className="p-4">Organization</TableHead>
-                    <TableHead className="p-4">Tags</TableHead>
-                    <TableHead className="p-4">Location</TableHead>
+                    <TableHead className="p-4 min-w-[200px] max-w-[300px]">Title</TableHead>
+                    <TableHead className="p-4 min-w-[150px] max-w-[200px]">Organization</TableHead>
+                    <TableHead className="p-4 min-w-[150px]">Tags</TableHead>
+                    <TableHead className="p-4 min-w-[120px] max-w-[180px]">Location</TableHead>
                     <TableHead className="p-4 w-[110px]">Updated</TableHead>
                     <TableHead className="p-4 w-[70px]" />
                   </TableRow>
@@ -307,7 +344,7 @@ export default function OpportunitiesPage() {
                           </div>
                           <div className="space-y-1">
                             <p className="font-medium">No opportunities</p>
-                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">Get started by creating a new CSR opportunity or adjust your search.</p>
+                            <p className="text-sm text-muted-foreground max-w-sm mx-auto">Get started by creating a new Volunteer opportunity or adjust your search.</p>
                           </div>
                           <Button size="sm" onClick={() => setOpenAdd(true)}>
                             <Plus className="size-4 mr-2" /> New Opportunity
@@ -324,14 +361,16 @@ export default function OpportunitiesPage() {
                       return (
                         <TableRow key={o.id} className="hover:bg-muted/50 transition-colors animate-[fadeIn_0.25s_ease-out]">
                           <TableCell className="p-4 font-medium">
-                            <div className="flex flex-col" title={o.description || o.title}>
+                            <div className="flex flex-col max-w-[300px]" title={o.description || o.title}>
                               <span className="truncate font-medium leading-snug">{o.title}</span>
                               {o.timeSlot && (
-                                <span className="text-xs text-muted-foreground truncate">{o.timeSlot}</span>
+                                <span className="text-xs text-muted-foreground truncate">{formatTimeSlot(o.timeSlot)}</span>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="p-4">{o.organization}</TableCell>
+                          <TableCell className="p-4">
+                            <span className="truncate block max-w-[200px]">{o.organization}</span>
+                          </TableCell>
                           <TableCell className="p-4 space-x-1">
                             {firstTags.map((t) => (
                               <Badge key={t} variant="secondary" className="align-middle">{t}</Badge>
@@ -347,7 +386,11 @@ export default function OpportunitiesPage() {
                               </Tooltip>
                             )}
                           </TableCell>
-                          <TableCell className="p-4">{o.location || <span className="text-muted-foreground">—</span>}</TableCell>
+                          <TableCell className="p-4">
+                            <span className="truncate block max-w-[180px]" title={o.location || undefined}>
+                              {o.location || <span className="text-muted-foreground">—</span>}
+                            </span>
+                          </TableCell>
                           <TableCell className="p-4">
                             <Tooltip>
                               <TooltipTrigger asChild>

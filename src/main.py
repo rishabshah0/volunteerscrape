@@ -2,7 +2,7 @@ import json
 import yaml
 import logging
 from urllib.parse import urlsplit
-from storage import save_to_mongodb
+from storage import insert_opportunity
 from get_crawler import get_webpage_content
 from js_crawler import get_webpage_content_js
 from llm import llm
@@ -44,7 +44,7 @@ if domain in sites_config:
         if opportunity_data:
             logging.info("Successfully extracted information:")
             logging.info(json.dumps(opportunity_data, indent=2))
-            save_to_mongodb(opportunity_data)
+            insert_opportunity(opportunity_data)
         else:
             raise Exception("Failed to extract information using the API.")
     else:

@@ -1,4 +1,5 @@
 import requests
+import urllib3
 import logging
 from .parser import parse_html
 
@@ -11,7 +12,12 @@ def get_webpage_content(url: str, instructions: dict) -> str:
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36'
     }
-    response = requests.get(url, headers=headers, timeout=10)
+    try:
+        response = requests.get(url, headers=headers, timeout=10, verify=True)
+    except requests.exceptions.SSLError as ssl_err:
+        logging.warning(f"SSL verification failed for {url}, retrying without verification: {ssl_err}")
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        response = requests.get(url, headers=headers, timeout=10, verify=False)
     response.raise_for_status()
     logging.info(f"Successfully fetched content from {url}")
     return parse_html(response.content, instructions)

@@ -1,5 +1,6 @@
 import re
 import logging
+import asyncio
 from typing import Optional
 from urllib.parse import urlsplit
 import datetime
@@ -47,16 +48,14 @@ async def lifespan(app: FastAPI):
     yield
     logging.info("Application shutting down...")
 
-app = FastAPI(title="CSR Scraper API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Volunteer Scraper API", version="0.1.0", lifespan=lifespan)
 
+# Configure CORS
 origins = [
-    "http://localhost",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "null",
 ]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -158,6 +157,7 @@ class Opportunity(BaseModel):
     description: Optional[str] = None
     activityType: Optional[str] = None
     timeSlot: Optional[str] = None
+    slotAvailability: Optional[list[str]] = None
     dateStart: Optional[str] = None
     dateEnd: Optional[str] = None
     url: str
@@ -174,6 +174,7 @@ class OpportunityCreate(BaseModel):
     description: Optional[str] = None
     activityType: Optional[str] = None
     timeSlot: Optional[str] = None
+    slotAvailability: Optional[list[str]] = None
     dateStart: Optional[str] = None
     dateEnd: Optional[str] = None
     url: Optional[str] = None
@@ -191,6 +192,7 @@ class Paginated(BaseModel):
 
 class GenerateConfigFromUrlRequest(BaseModel):
     url: str
+    model: Optional[str] = None
 
     @field_validator('url', mode='before')
     @classmethod
@@ -208,7 +210,7 @@ class GenerateConfigFromUrlRequest(BaseModel):
 def _extract_visible_text(raw_html: str) -> str:
     try:
         soup = BeautifulSoup(raw_html, 'html.parser')
-        for tag in soup(['script', 'style', 'noscript', 'header', 'footer', 'nav', 'aside']):
+        for tag in soup(['script', 'style', 'noscript']):
             tag.decompose()
         text = soup.get_text(separator='\n', strip=True)
         lines = [l.strip() for l in text.splitlines()]
@@ -232,31 +234,36 @@ async def _scrape_url(url: str, model: str):
     cleaned_content = ''
     try_get_first = (crawler_pref is None) or (crawler_pref == 'get')
 
-    def _safe_get():
+    async def _safe_get():
         try:
-            return get_webpage_content(url, instructions) or ''
+            # Run blocking get_webpage_content in a thread pool
+            return await asyncio.to_thread(get_webpage_content, url, instructions) or ''
         except Exception:
             return ''
 
-    def _safe_js():
+    async def _safe_js():
         try:
-            return get_webpage_content_js(url, instructions) or ''
+            # Run blocking get_webpage_content_js in a thread pool
+            return await asyncio.to_thread(get_webpage_content_js, url, instructions) or ''
         except Exception:
             return ''
 
     if try_get_first:
-        cleaned_content = _safe_get()
-        if not cleaned_content:
-            cleaned_content = _safe_js()
+        cleaned_content = await _safe_get()
+        # If GET request returns very little content (< 500 chars), likely a JS-rendered site
+        if not cleaned_content or len(cleaned_content) < 500:
+            logging.info(f"GET request returned insufficient content ({len(cleaned_content)} chars), trying JS crawler")
+            cleaned_content = await _safe_js()
     else:
-        cleaned_content = _safe_js()
+        cleaned_content = await _safe_js()
         if not cleaned_content:
-            cleaned_content = _safe_get()
+            cleaned_content = await _safe_get()
 
     if not cleaned_content:
         raise HTTPException(status_code=502, detail='Failed to retrieve or parse content')
 
-    data = llm(cleaned_content, url, model_name=model)
+    # Run blocking LLM call in a thread pool
+    data = await asyncio.to_thread(llm, cleaned_content, url, model)
     return data
 
 
@@ -278,15 +285,21 @@ async def scrape_and_save(req: ScrapeRequest):
     if not scraped_data:
         raise HTTPException(status_code=502, detail='Failed to extract any data from the URL.')
 
+    # Use titlecase library
+    from titlecase import titlecase
+
     now = datetime.datetime.now(datetime.UTC).isoformat()
+    raw_title = scraped_data.get("activity_type", "")
+
     doc_to_insert = {
-        "title": scraped_data.get("activity_type", "Untitled Opportunity"),
+        "title": titlecase(raw_title) if raw_title else "Untitled Opportunity",
         "organization": scraped_data.get("organization_name"),
         "tags": [tag.lower() for tag in scraped_data.get("tags", [])],
         "location": scraped_data.get("location"),
         "description": scraped_data.get("extra"),
-        "activityType": scraped_data.get("activity_type"),
+        "activityType": scraped_data.get("mode", "Onsite"), # Use mode from LLM
         "timeSlot": scraped_data.get("time_slot"),
+        "slotAvailability": scraped_data.get("slot_availability"),
         "url": scraped_data.get("url"),
         "contactEmail": scraped_data.get("contact_email") if scraped_data.get("contact_email") != "N/A" else None,
         "contactPhone": str(scraped_data.get("contact_number")) if scraped_data.get("contact_number") else None,
@@ -335,7 +348,8 @@ async def scrape_get(url: str, model: str = 'gemini'):
 @app.post('/api/generate-config')
 async def generate_config(req: GenerateConfigRequest):
     try:
-        selectors = generate_parser_selectors(req.raw_html, req.url)
+        # Run blocking LLM call in a thread pool
+        selectors = await asyncio.to_thread(generate_parser_selectors, req.raw_html, req.url)
         cleaned_text = parse_html(req.raw_html, selectors)
         return { 'selectors': selectors, 'cleaned_text': cleaned_text }
     except HTTPException:
@@ -433,6 +447,7 @@ def _map_doc_to_opportunity(doc: dict) -> Opportunity:
         description=_pick('description', 'extra'),
         activityType=_pick('activityType', 'activity_type'),
         timeSlot=_pick('timeSlot', 'time_slot'),
+        slotAvailability=_pick_list('slotAvailability', 'slot_availability'),
         dateStart=_pick('dateStart', 'date_start'),
         dateEnd=_pick('dateEnd', 'date_end'),
         url=_pick('url', default='') or '',
@@ -468,6 +483,7 @@ async def opportunity_create(body: OpportunityCreate):
         'description': body.description or '',
         'activityType': body.activityType or '',
         'timeSlot': body.timeSlot or '',
+        'slotAvailability': body.slotAvailability or [],
         'dateStart': body.dateStart,
         'dateEnd': body.dateEnd,
         'url': body.url or '',
@@ -507,7 +523,7 @@ async def opportunity_delete(id: str):
 
 @app.get('/')
 async def root():
-    return { 'message': 'CSR Scraper API running' }
+    return { 'message': 'Volunteer Scraper API running' }
 
 
 @app.exception_handler(HTTPException)
@@ -518,16 +534,65 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 async def generate_config_url(req: GenerateConfigFromUrlRequest):
     try:
         import requests
+        import urllib3
+        from playwright.sync_api import sync_playwright
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
-        r = requests.get(req.url, headers=headers, timeout=20)
+
+        # First try with regular requests
+        try:
+            r = await asyncio.to_thread(requests.get, req.url, headers=headers, timeout=20, verify=True)
+        except requests.exceptions.SSLError as ssl_err:
+            logging.warning(f"SSL verification failed for {req.url}, retrying without verification: {ssl_err}")
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            r = await asyncio.to_thread(requests.get, req.url, headers=headers, timeout=20, verify=False)
         r.raise_for_status()
         raw_html = r.text
-        selectors = generate_parser_selectors(raw_html, req.url)
-        cleaned_text = parse_html(raw_html, selectors)
+        logging.info(f"Fetched HTML length: {len(raw_html)}")
+
+        # Check if this is a JS-heavy site by looking at the raw text content
         raw_text = _extract_visible_text(raw_html)
-        return {'selectors': selectors, 'cleaned_text': cleaned_text, 'raw_text': raw_text}
+        logging.info(f"Raw text length from static HTML: {len(raw_text)}")
+
+        # Track if we needed to use JS rendering
+        used_js_crawler = False
+
+        # If raw text is suspiciously short, use Playwright to render JavaScript
+        if len(raw_text) < 500:
+            logging.info(f"Detected JS-heavy site, using Playwright to render content")
+            used_js_crawler = True
+            def fetch_with_playwright():
+                with sync_playwright() as p:
+                    browser = p.chromium.launch()
+                    page = browser.new_page()
+                    page.goto(req.url)
+                    # Wait for content to load
+                    page.wait_for_timeout(3000)  # Wait 3 seconds for JS to render
+                    return page.content()
+
+            raw_html = await asyncio.to_thread(fetch_with_playwright)
+            logging.info(f"Fetched rendered HTML length: {len(raw_html)}")
+            raw_text = _extract_visible_text(raw_html)
+            logging.info(f"Raw text length after JS rendering: {len(raw_text)}")
+
+        # Run blocking LLM call in a thread pool with model parameter
+        selectors = await asyncio.to_thread(generate_parser_selectors, raw_html, req.url, req.model or 'gemini')
+        logging.info(f"Generated selectors: {selectors}")
+        cleaned_text = parse_html(raw_html, selectors)
+        logging.info(f"Cleaned text length: {len(cleaned_text)}")
+
+        # Determine recommended crawler
+        recommended_crawler = 'js' if used_js_crawler else 'get'
+        logging.info(f"Recommended crawler: {recommended_crawler}")
+
+        return {
+            'selectors': selectors,
+            'cleaned_text': cleaned_text,
+            'raw_text': raw_text,
+            'recommended_crawler': recommended_crawler
+        }
     except HTTPException:
         raise
     except Exception:

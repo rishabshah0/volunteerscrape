@@ -141,7 +141,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">Admin User</span>
-                    <span className="truncate text-xs">admin@goodera.com</span>
+                    <span className="truncate text-xs">admin@example.com</span>
                   </div>
                   <ChevronUp className="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -160,7 +160,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">Admin User</span>
-                      <span className="truncate text-xs">admin@goodera.com</span>
+                      <span className="truncate text-xs">admin@example.com</span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
