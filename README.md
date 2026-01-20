@@ -50,6 +50,3 @@ This project is a full-stack application designed to scrape volunteer opportunit
     npm run:dev
     ```
     The frontend will be available at `http://localhost:3000`. You can see the auto-generated documentation at `http://localhost:8000/docs`.
-
-## Stack
-MongoDB, FastAPI, NextJS, LangChain, Pydantic, ShadCN/UI
