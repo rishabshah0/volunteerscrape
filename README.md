@@ -1,4 +1,4 @@
-# CSR Opportunity Scraper
+# Volunteer Opportunity Scraper
 
 using LLMs to scrape for volunteer opportunities
 
@@ -44,35 +44,12 @@ This project is a full-stack application designed to scrape volunteer opportunit
     playwright install
     ```
 
-5.  **Run the backend server:**
+5.  **Run all the servers:**
     ```bash
-    uvicorn src.api:app --reload
+    cd src/my-app
+    npm run:dev
     ```
-    The API will be available at `http://localhost:8000`. You can see the auto-generated documentation at `http://localhost:8000/docs`.
+    The frontend will be available at `http://localhost:3000`. You can see the auto-generated documentation at `http://localhost:8000/docs`.
 
-### Frontend Setup
-
-1.  **Navigate to the frontend directory:**
-    ```bash
-    cd my-app
-    ```
-
-2.  **Install Node.js dependencies:**
-    ```bash
-    pnpm install
-    ```
-
-3.  **Run the frontend development server:**
-    ```bash
-    pnpm dev
-    ```
-    The web application will be available at `http://localhost:3000`.
-
-## How It Works
-
-1.  **Crawling**: The backend uses either a simple `requests`-based crawler (`get_crawler.py`) or a JavaScript-rendering crawler (`js_crawler.py` with Playwright) based on the configuration in `sites.yaml`.
-2.  **Parsing**: The raw HTML is cleaned using `BeautifulSoup` based on `include` and `exclude` CSS selectors defined in `sites.yaml`.
-3.  **Extraction**: The cleaned text is sent to an LLM (Gemini or GPT) via LangChain. The LLM uses a "tool" (`VolunteerOpportunity` Pydantic model) to extract structured data.
-4.  **Storage**: The structured data is saved in a MongoDB database. The API provides CRUD endpoints to manage these opportunities.
-5.  **API**: A FastAPI server exposes endpoints for scraping, managing configurations, and retrieving opportunities.
-6.  **Frontend**: A Next.js app provides a user interface for viewing, searching, and administering the scraped opportunities.
+## Stack
+MongoDB, FastAPI, NextJS, LangChain, Pydantic, ShadCN/UI
