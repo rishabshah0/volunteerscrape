@@ -34,4 +34,4 @@ using LLMs to scrape for volunteer opportunities
     cd src/my-app
     npm run:dev
     ```
-    The frontend will be available at `http://localhost:3000`. You can see the auto-generated documentation at `http://localhost:8000/docs`.
+    The frontend will be available at `http://localhost:3000`. You can see the auto-generated API documentation at `http://localhost:8000/docs`.
