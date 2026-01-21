@@ -2,22 +2,7 @@
 
 using LLMs to scrape for volunteer opportunities
 
-## Overview
-
-This project is a full-stack application designed to scrape volunteer opportunities from various websites, process the information using Large Language Models (LLMs), and display them in a clean, searchable web interface.
-
-- **Backend**: A Python application using FastAPI, LangChain, and Playwright.
-- **Frontend**: A Next.js application.
-- **Database**: MongoDB.
-
 ## Getting Started
-
-### Prerequisites
-
-- Python 3.9+
-- Node.js 18+
-- MongoDB running locally or on a cloud service.
-- `pnpm` for frontend package management (`npm install -g pnpm`)
 
 ### Backend Setup
 
