@@ -14,6 +14,7 @@ using LLMs to scrape for volunteer opportunities
 
 2.  **Install Python dependencies:**
     ```bash
+    cd src
     pip install -r requirements.txt
     ```
 
